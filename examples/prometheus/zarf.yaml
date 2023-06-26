@@ -1,0 +1,42 @@
+kind: ZarfPackageConfig
+metadata:
+  name: prometheus-package
+
+components:
+  - name: metrics
+    description: |
+      Deploys Promethus to enable metrics collection.
+      Aggregates metrics and presents them in a web dashboard.
+      Recommended if no other metrics collection services are deployed in the cluster.
+    required: true
+    images:
+      - quay.io/prometheus/node-exporter:v1.5.0
+      - registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.8.0
+      - prom/pushgateway:v1.5.1
+      - quay.io/prometheus/prometheus:v2.44.0
+      - quay.io/prometheus-operator/prometheus-config-reloader:v0.66.0
+      - quay.io/prometheus/alertmanager:v0.25.0
+    manifests:
+      - name: metrics-connect
+        namespace: zarf
+        files:
+          - connect.yaml
+    charts:
+      - name: prometheus
+        releaseName: zarf-prometheus
+        url: https://prometheus-community.github.io/helm-charts
+        version: 22.6.6
+        namespace: zarf
+        valuesFiles:
+          - prometheus-values.yaml
+    actions:
+      onDeploy:
+        after:
+          - wait:
+              cluster:
+                kind: pod
+                namespace: zarf
+                name: app.kubernetes.io/name=prometheus
+                condition: Ready
+          - cmd: sudo kubectl expose service zarf-prometheus-server --type=NodePort --target-port=9090 --name=prometheus-server-ext -namespace zarf
+            description: Exposes Prometheus through a NodePort to allow a connection with Grafana
